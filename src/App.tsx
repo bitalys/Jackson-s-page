@@ -515,7 +515,7 @@ export function App() {
                 />
                 <div className="art-card art-card-top !bg-white/90 !backdrop-blur-sm">
                   <span>REPRESENTATIVE</span>
-                  <b>{data.profile.school.split(' ')[0] || 'STUDENT'}</b>
+                  <b>{data.profile?.school ? data.profile.school.split(' ')[0] : 'STUDENT'}</b>
                 </div>
                 <div className="art-card art-card-bottom !bg-white/95 !backdrop-blur-sm">
                   <span>ALWAYS IN PROGRESS</span>
@@ -564,22 +564,22 @@ export function App() {
         <section className="intro section-wrap" id="about">
           <div className="section-kicker">01 — ABOUT</div>
           <div className="intro-content">
-            <p className="section-label">{data.profile.aboutLabel}</p>
+            <p className="section-label">{data.profile?.aboutLabel}</p>
             <h2>
-              {data.profile.aboutTitleLine1}
+              {data.profile?.aboutTitleLine1}
               <br />
-              through <em>{data.profile.aboutTitleItalic}</em>
+              through <em>{data.profile?.aboutTitleItalic}</em>
             </h2>
             <div className="intro-columns">
-              <p>{data.profile.aboutPara1}</p>
-              <p>{data.profile.aboutPara2}</p>
+              <p>{data.profile?.aboutPara1}</p>
+              <p>{data.profile?.aboutPara2}</p>
             </div>
           </div>
         </section>
 
         {/* STATS BAND */}
         <section className="stats-band">
-          {data.profile.stats.map((st) => (
+          {(data.profile?.stats || []).map((st) => (
             <div className="stat" key={st.id}>
               <strong>
                 {st.valueMain}
@@ -645,7 +645,7 @@ export function App() {
 
           {/* Sport Cards Grid */}
           <div className="sport-grid">
-            {data.athletics.map((sport) => {
+            {(data.athletics || []).map((sport) => {
               const rep = getRepresentativeView(sport);
               const repYtId = extractYouTubeId(rep.youtubeUrl);
               const acts = sport.activities || [];
@@ -747,7 +747,7 @@ export function App() {
                     <p>{sport.description}</p>
 
                     <ul className="detail-list">
-                      {sport.details.map((detail, idx) => (
+                      {(sport.details || []).map((detail, idx) => (
                         <li key={idx}>
                           <span>{detail.label}</span>
                           <b>{detail.value}</b>
@@ -966,16 +966,16 @@ export function App() {
               </div>
               <h3>{data.profile.awardHeadline}</h3>
 
-              {data.awards.map((award) => (
+              {(data.awards || []).map((award) => (
                 <div key={award.id} className="border-t border-[#e3e4de] py-3.5">
                   <div className="award-row !border-0 !py-0">
                     <span>{award.year}</span>
                     <b>{award.title}</b>
                     <small>{award.subtitle}</small>
                   </div>
-                  {award.attachments.length > 0 && (
+                  {(award.attachments || []).length > 0 && (
                     <div className="mt-2 pl-[60px] flex flex-wrap gap-2">
-                      {award.attachments.map((att) => (
+                      {(award.attachments || []).map((att) => (
                         <button
                           key={att.id}
                           type="button"
@@ -1030,15 +1030,15 @@ export function App() {
           </div>
 
           <div className="experience-list">
-            {data.experiences.map((exp) => (
+            {(data.experiences || []).map((exp) => (
               <article key={exp.id}>
                 <span className="experience-no">{exp.number}</span>
                 <div className="space-y-2">
                   <h3>{exp.title}</h3>
                   <p>{exp.description}</p>
-                  {exp.attachments.length > 0 && (
+                  {(exp.attachments || []).length > 0 && (
                     <div className="pt-2 flex flex-wrap gap-2">
-                      {exp.attachments.map((att) => (
+                      {(exp.attachments || []).map((att) => (
                         <button
                           key={att.id}
                           type="button"
@@ -1120,7 +1120,7 @@ export function App() {
 
             {/* Interest Main Category Cards */}
             <div className="interest-cards">
-              {data.interests.map((interest) => {
+              {(data.interests || []).map((interest) => {
                 const rep = getRepresentativeView(interest);
                 const repYtId = extractYouTubeId(rep.youtubeUrl);
                 const acts = interest.activities || [];

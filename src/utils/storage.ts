@@ -4,6 +4,7 @@ import {
   SportItem,
   InterestItem,
   SubActivityItem,
+  ProfileSettings,
 } from '../types';
 
 const DB_NAME = 'JacksonHongPortfolioDB';
@@ -342,15 +343,39 @@ export const INITIAL_PORTFOLIO_DATA: PortfolioData = {
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    if (typeof window === 'undefined' || typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB not available'));
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      reject(new Error('IndexedDB open timeout'));
+    }, 2000);
+
+    try {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME);
+        }
+      };
+      request.onsuccess = () => {
+        clearTimeout(timer);
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        clearTimeout(timer);
+        reject(request.error || new Error('IndexedDB error'));
+      };
+      request.onblocked = () => {
+        clearTimeout(timer);
+        reject(new Error('IndexedDB blocked'));
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      reject(e);
+    }
   });
 }
 
@@ -358,75 +383,115 @@ export async function loadPortfolioData(): Promise<PortfolioData> {
   try {
     const db = await openDB();
     return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(DATA_KEY);
-      req.onsuccess = () => {
-        if (req.result) {
-          const loaded = req.result as PortfolioData;
-          // Ensure migration for sub-activities
-          const migrated = migrateData(loaded);
-          resolve(migrated);
-        } else {
+      const timer = setTimeout(() => {
+        resolve(INITIAL_PORTFOLIO_DATA);
+      }, 1500);
+
+      try {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get(DATA_KEY);
+        req.onsuccess = () => {
+          clearTimeout(timer);
+          if (req.result) {
+            const loaded = req.result as PortfolioData;
+            const migrated = migrateData(loaded);
+            resolve(migrated);
+          } else {
+            resolve(INITIAL_PORTFOLIO_DATA);
+          }
+        };
+        req.onerror = () => {
+          clearTimeout(timer);
           resolve(INITIAL_PORTFOLIO_DATA);
-        }
-      };
-      req.onerror = () => resolve(INITIAL_PORTFOLIO_DATA);
+        };
+      } catch {
+        clearTimeout(timer);
+        resolve(INITIAL_PORTFOLIO_DATA);
+      }
     });
   } catch {
     return INITIAL_PORTFOLIO_DATA;
   }
 }
 
-function migrateData(data: PortfolioData): PortfolioData {
-  const athletics: SportItem[] = (data.athletics || []).map((sport) => {
-    if (!sport.activities || sport.activities.length === 0) {
-      const defaultSport = INITIAL_PORTFOLIO_DATA.athletics.find((s) => s.id === sport.id);
-      return {
-        ...sport,
-        featuredMode: sport.featuredMode || 'latest',
-        activities: defaultSport?.activities || [],
-      };
-    }
+function migrateData(data: Partial<PortfolioData>): PortfolioData {
+  if (!data || typeof data !== 'object') {
+    return INITIAL_PORTFOLIO_DATA;
+  }
+
+  // Merge profile and guarantee stats array
+  const rawProfile: Partial<ProfileSettings> = data.profile || {};
+  const mergedProfile = {
+    ...INITIAL_PORTFOLIO_DATA.profile,
+    ...rawProfile,
+    stats: Array.isArray(rawProfile.stats) && rawProfile.stats.length > 0
+      ? rawProfile.stats
+      : INITIAL_PORTFOLIO_DATA.profile.stats,
+  };
+
+  // Merge athletics
+  const rawAthletics = Array.isArray(data.athletics) && data.athletics.length > 0
+    ? data.athletics
+    : INITIAL_PORTFOLIO_DATA.athletics;
+
+  const athletics: SportItem[] = rawAthletics.map((sport) => {
+    const defaultSport = INITIAL_PORTFOLIO_DATA.athletics.find((s) => s.id === sport.id);
+    const activities = Array.isArray(sport.activities) && sport.activities.length > 0
+      ? sport.activities
+      : defaultSport?.activities || [];
+    const details = Array.isArray(sport.details) && sport.details.length > 0
+      ? sport.details
+      : defaultSport?.details || [];
+    const attachments = Array.isArray(sport.attachments) ? sport.attachments : [];
+
     return {
       ...sport,
+      visualStyle: sport.visualStyle || defaultSport?.visualStyle || 'golf',
       featuredMode: sport.featuredMode || 'latest',
+      activities,
+      details,
+      attachments,
     };
   });
 
-  const interests: InterestItem[] = (data.interests || []).map((interest) => {
-    if (!interest.activities || interest.activities.length === 0) {
-      // Check if old mediaGallery existed
+  // Merge interests
+  const rawInterests = Array.isArray(data.interests) && data.interests.length > 0
+    ? data.interests
+    : INITIAL_PORTFOLIO_DATA.interests;
+
+  const interests: InterestItem[] = rawInterests.map((interest) => {
+    const defaultInt = INITIAL_PORTFOLIO_DATA.interests.find((i) => i.id === interest.id);
+    let activities = Array.isArray(interest.activities) ? interest.activities : [];
+
+    if (activities.length === 0) {
+      // Check legacy mediaGallery
       const oldGallery = (interest as unknown as { mediaGallery?: { id: string; title: string; imageUrl: string; youtubeUrl?: string; description?: string; createdAt: string }[] }).mediaGallery;
-      if (oldGallery && oldGallery.length > 0) {
-        return {
-          ...interest,
-          featuredMode: interest.featuredMode || 'latest',
-          activities: oldGallery.map((g, idx) => ({
-            id: g.id || `act-${idx}`,
-            title: g.title,
-            date: new Date(g.createdAt || Date.now()).toLocaleDateString(),
-            description: g.description || '',
-            imageUrl: g.imageUrl,
-            youtubeUrl: g.youtubeUrl,
-            createdAt: g.createdAt || new Date().toISOString(),
-          })),
-        };
+      if (Array.isArray(oldGallery) && oldGallery.length > 0) {
+        activities = oldGallery.map((g, idx) => ({
+          id: g.id || `act-${idx}`,
+          title: g.title,
+          date: new Date(g.createdAt || Date.now()).toLocaleDateString(),
+          description: g.description || '',
+          imageUrl: g.imageUrl,
+          youtubeUrl: g.youtubeUrl,
+          createdAt: g.createdAt || new Date().toISOString(),
+          attachments: [],
+        }));
+      } else if (defaultInt?.activities) {
+        activities = defaultInt.activities;
       }
-      const defaultInt = INITIAL_PORTFOLIO_DATA.interests.find((i) => i.id === interest.id);
-      return {
-        ...interest,
-        featuredMode: interest.featuredMode || 'latest',
-        activities: defaultInt?.activities || [],
-      };
     }
+
     return {
       ...interest,
       featuredMode: interest.featuredMode || 'latest',
+      activities,
+      attachments: Array.isArray(interest.attachments) ? interest.attachments : [],
     };
   });
 
-  // Ensure donation exists as an example of adding main categories if user hadn't customized it
+  // Ensure donation is present
   if (!interests.some((i) => i.id === 'interest-donation')) {
     const donationItem = INITIAL_PORTFOLIO_DATA.interests.find((i) => i.id === 'interest-donation');
     if (donationItem) {
@@ -434,9 +499,27 @@ function migrateData(data: PortfolioData): PortfolioData {
     }
   }
 
+  // Merge awards
+  const awards = Array.isArray(data.awards) && data.awards.length > 0
+    ? data.awards.map((a) => ({
+        ...a,
+        attachments: Array.isArray(a.attachments) ? a.attachments : [],
+      }))
+    : INITIAL_PORTFOLIO_DATA.awards;
+
+  // Merge experiences
+  const experiences = Array.isArray(data.experiences) && data.experiences.length > 0
+    ? data.experiences.map((x) => ({
+        ...x,
+        attachments: Array.isArray(x.attachments) ? x.attachments : [],
+      }))
+    : INITIAL_PORTFOLIO_DATA.experiences;
+
   return {
-    ...data,
+    profile: mergedProfile,
     athletics,
+    awards,
+    experiences,
     interests,
   };
 }
