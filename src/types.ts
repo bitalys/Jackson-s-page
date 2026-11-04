@@ -57,6 +57,7 @@ export interface AwardItem {
   subtitle: string;
   essayTitle?: string;
   summary?: string;
+  createdAt?: string;
   attachments: UploadedFile[];
 }
 
@@ -64,9 +65,13 @@ export interface ExperienceItem {
   id: string;
   number: string;
   title: string;
+  subtitle?: string; // e.g. "Vancouver & Toronto, Canada"
+  date?: string; // e.g. "2018 — 2021"
+  categoryTag?: string; // e.g. "다문화 적응 & 어학"
   description: string;
   coverImageUrl?: string;
   youtubeUrl?: string;
+  createdAt?: string;
   attachments: UploadedFile[];
 }
 

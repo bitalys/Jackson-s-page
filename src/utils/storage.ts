@@ -4,6 +4,8 @@ import {
   SportItem,
   InterestItem,
   SubActivityItem,
+  AwardItem,
+  ExperienceItem,
   ProfileSettings,
 } from '../types';
 
@@ -178,12 +180,13 @@ export const INITIAL_PORTFOLIO_DATA: PortfolioData = {
   ],
   awards: [
     {
-      id: 'award-2024',
-      year: '2024',
-      title: 'Award recipient',
-      subtitle: 'Recognition received',
-      essayTitle: '2024 John Locke Junior Category Submission',
-      summary: 'Recognized for analytical rigor and philosophical inquiry.',
+      id: 'award-2026',
+      year: '2026',
+      title: 'Commendation',
+      subtitle: 'John Locke Essay Competition',
+      essayTitle: '2026 John Locke Essay Competition Entry',
+      summary: 'Third consecutive year of international recognition in essay writing.',
+      createdAt: '2026-06-01T00:00:00Z',
       attachments: [],
     },
     {
@@ -193,41 +196,64 @@ export const INITIAL_PORTFOLIO_DATA: PortfolioData = {
       subtitle: 'John Locke Essay Competition',
       essayTitle: '2025 John Locke Essay Competition Entry',
       summary: 'Awarded Commendation by the Oxford-affiliated adjudication panel.',
+      createdAt: '2025-06-01T00:00:00Z',
       attachments: [],
     },
     {
-      id: 'award-2026',
-      year: '2026',
-      title: 'Commendation',
-      subtitle: 'John Locke Essay Competition',
-      essayTitle: '2026 John Locke Essay Competition Entry',
-      summary: 'Third consecutive year of international recognition in essay writing.',
+      id: 'award-2024',
+      year: '2024',
+      title: 'Award recipient',
+      subtitle: 'Recognition received',
+      essayTitle: '2024 John Locke Junior Category Submission',
+      summary: 'Recognized for analytical rigor and philosophical inquiry.',
+      createdAt: '2024-06-01T00:00:00Z',
       attachments: [],
     },
   ],
   experiences: [
     {
-      id: 'exp-1',
-      number: '01',
-      title: 'Living in Canada',
-      description:
-        'Living in Canada gave me an early opportunity to experience a different culture and community. It also helped spark my interest in ice hockey.',
-      attachments: [],
-    },
-    {
       id: 'exp-2',
-      number: '02',
+      number: '01',
       title: 'Travel & exploration',
+      subtitle: 'Europe, Asia & North America',
+      date: '2022 — Present',
+      categoryTag: '글로벌 견문 & 문화탐방',
       description:
         'Traveling from a young age has helped me stay open to unfamiliar places, people, and ways of seeing the world.',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1488646953014-85cb44e25828?auto=format&fit=crop&w=1200&q=80',
+      youtubeUrl: 'https://www.youtube.com/watch?v=FjU_x1106pg',
+      createdAt: '2026-04-01T00:00:00Z',
       attachments: [],
     },
     {
       id: 'exp-3',
-      number: '03',
+      number: '02',
       title: 'U.S. boarding school summer programs',
+      subtitle: 'Massachusetts & New Hampshire · USA',
+      date: 'Summer 2024 & 2025',
+      categoryTag: '썸머 아카데믹 & 리더십',
       description:
         'Participating in summer programs at leading boarding schools in the eastern United States gave me a taste of residential school life and learning in a new environment.',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?auto=format&fit=crop&w=1200&q=80',
+      youtubeUrl: 'https://www.youtube.com/watch?v=bTqVqk7FSmY',
+      createdAt: '2025-08-31T00:00:00Z',
+      attachments: [],
+    },
+    {
+      id: 'exp-1',
+      number: '03',
+      title: 'Living in Canada',
+      subtitle: 'Vancouver & Toronto · Canada',
+      date: '2018 — 2021',
+      categoryTag: '다문화 적응 & 어학',
+      description:
+        'Living in Canada gave me an early opportunity to experience a different culture and community. It also helped spark my interest in ice hockey.',
+      coverImageUrl:
+        'https://images.unsplash.com/photo-1517935703635-27c946e6ab90?auto=format&fit=crop&w=1200&q=80',
+      youtubeUrl: 'https://www.youtube.com/watch?v=1La4QzGeaaQ',
+      createdAt: '2021-12-31T00:00:00Z',
       attachments: [],
     },
   ],
@@ -449,9 +475,9 @@ function migrateData(data: Partial<PortfolioData>): PortfolioData {
       ...sport,
       visualStyle: sport.visualStyle || defaultSport?.visualStyle || 'golf',
       featuredMode: sport.featuredMode || 'latest',
-      activities,
+      activities: sortActivities(activities),
       details,
-      attachments,
+      attachments: sortAttachments(attachments),
     };
   });
 
@@ -486,8 +512,8 @@ function migrateData(data: Partial<PortfolioData>): PortfolioData {
     return {
       ...interest,
       featuredMode: interest.featuredMode || 'latest',
-      activities,
-      attachments: Array.isArray(interest.attachments) ? interest.attachments : [],
+      activities: sortActivities(activities),
+      attachments: sortAttachments(Array.isArray(interest.attachments) ? interest.attachments : []),
     };
   });
 
@@ -499,21 +525,42 @@ function migrateData(data: Partial<PortfolioData>): PortfolioData {
     }
   }
 
-  // Merge awards
-  const awards = Array.isArray(data.awards) && data.awards.length > 0
-    ? data.awards.map((a) => ({
-        ...a,
-        attachments: Array.isArray(a.attachments) ? a.attachments : [],
-      }))
+  // Merge awards (sorted newest first)
+  const rawAwards = Array.isArray(data.awards) && data.awards.length > 0
+    ? data.awards
     : INITIAL_PORTFOLIO_DATA.awards;
 
-  // Merge experiences
-  const experiences = Array.isArray(data.experiences) && data.experiences.length > 0
-    ? data.experiences.map((x) => ({
+  const awards = sortAwards(
+    rawAwards.map((a) => ({
+      ...a,
+      attachments: sortAttachments(Array.isArray(a.attachments) ? a.attachments : []),
+    }))
+  );
+
+  // Merge experiences (sorted newest first)
+  const defaultExps = INITIAL_PORTFOLIO_DATA.experiences;
+  const rawExps = Array.isArray(data.experiences) && data.experiences.length > 0
+    ? data.experiences
+    : defaultExps;
+
+  const experiences = sortExperiences(
+    rawExps.map((x) => {
+      const defaultExp = defaultExps.find((d) => d.id === x.id || d.number === x.number);
+      return {
+        ...defaultExp,
         ...x,
-        attachments: Array.isArray(x.attachments) ? x.attachments : [],
-      }))
-    : INITIAL_PORTFOLIO_DATA.experiences;
+        subtitle: x.subtitle || defaultExp?.subtitle || '',
+        date: x.date || defaultExp?.date || '',
+        categoryTag: x.categoryTag || defaultExp?.categoryTag || '',
+        coverImageUrl: x.coverImageUrl || defaultExp?.coverImageUrl || '',
+        youtubeUrl: x.youtubeUrl || defaultExp?.youtubeUrl || '',
+        createdAt: x.createdAt || defaultExp?.createdAt || new Date().toISOString(),
+        attachments: sortAttachments(
+          Array.isArray(x.attachments) ? x.attachments : (defaultExp?.attachments || [])
+        ),
+      };
+    })
+  );
 
   return {
     profile: mergedProfile,
@@ -625,6 +672,141 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
+ * Extracts a comparable numeric score from freeform date strings.
+ * Higher number = more recent date.
+ * Handles:
+ * - "2026.05.10" -> 20260510
+ * - "2026.04" -> 20260400
+ * - "2025.12" -> 20251200
+ * - "2025 가을" -> 20251000
+ * - "Summer 2024 & 2025" -> 20250700
+ * - "2022 — Present" / "현재" -> 20991231 (active / ongoing)
+ * - "2018 — 2021" -> 20210000
+ * - "2026" -> 20260000
+ */
+export function extractDateScore(dateStr?: string): number {
+  if (!dateStr) return 0;
+  const str = dateStr.trim().toLowerCase();
+  if (!str) return 0;
+
+  // 1. Ongoing / Present indicators (should be considered latest active)
+  const isPresent =
+    str.includes('present') ||
+    str.includes('현재') ||
+    str.includes('진행중') ||
+    str.includes('재학중') ||
+    str.includes('now');
+
+  // 2. Find all 4-digit years (e.g. 2018, 2021, 2024, 2025, 2026)
+  const yearMatches = str.match(/\b(19\d\d|20\d\d)\b/g);
+  let maxYear = 0;
+  if (yearMatches && yearMatches.length > 0) {
+    maxYear = Math.max(...yearMatches.map((y) => parseInt(y, 10)));
+  }
+
+  if (isPresent) {
+    return 20990000 + (maxYear > 0 ? maxYear : 2026);
+  }
+
+  // 3. If no 4-digit year found, try Date.parse
+  if (maxYear === 0) {
+    const parsed = Date.parse(str);
+    if (!isNaN(parsed)) {
+      return parsed;
+    }
+    return 0;
+  }
+
+  // 4. Extract Month & Day
+  let month = 0;
+  let day = 0;
+
+  if (str.includes('겨울') || str.includes('winter')) {
+    month = 12;
+  } else if (str.includes('가을') || str.includes('autumn') || str.includes('fall')) {
+    month = 10;
+  } else if (str.includes('여름') || str.includes('summer')) {
+    month = 7;
+  } else if (str.includes('봄') || str.includes('spring')) {
+    month = 4;
+  } else {
+    // Look for Month pattern after year: YYYY.MM or YYYY-MM or YYYY/MM
+    const ymMatch = str.match(/(?:19\d\d|20\d\d)[.\-/](\d{1,2})(?:[.\-/](\d{1,2}))?/);
+    if (ymMatch) {
+      month = parseInt(ymMatch[1], 10) || 0;
+      day = parseInt(ymMatch[2], 10) || 0;
+    } else {
+      const koreanMonthMatch = str.match(/(\d{1,2})\s*월/);
+      if (koreanMonthMatch) {
+        month = parseInt(koreanMonthMatch[1], 10) || 0;
+        const koreanDayMatch = str.match(/(\d{1,2})\s*일/);
+        if (koreanDayMatch) {
+          day = parseInt(koreanDayMatch[1], 10) || 0;
+        }
+      }
+    }
+  }
+
+  if (month < 0 || month > 12) month = 0;
+  if (day < 0 || day > 31) day = 0;
+
+  return maxYear * 10000 + month * 100 + day;
+}
+
+export function compareItemsByDateDesc<
+  T extends {
+    date?: string;
+    year?: string;
+    createdAt?: string;
+    id?: string;
+  }
+>(a: T, b: T): number {
+  const dateStrA = a.date || a.year;
+  const dateStrB = b.date || b.year;
+
+  const scoreA = extractDateScore(dateStrA);
+  const scoreB = extractDateScore(dateStrB);
+
+  // 1. If parsed dates differ, latest date first
+  if (scoreA !== scoreB) {
+    return scoreB - scoreA;
+  }
+
+  // 2. If dates match or are absent, newly created/saved thread first ("나중에 저장된 쓰레드 우선")
+  const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+  const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+  if (timeA !== timeB) {
+    return timeB - timeA;
+  }
+
+  // 3. Fallback to ID string comparison
+  return (b.id || '').localeCompare(a.id || '');
+}
+
+export function sortActivities(activities: SubActivityItem[]): SubActivityItem[] {
+  return [...activities].sort(compareItemsByDateDesc);
+}
+
+export function sortExperiences(experiences: ExperienceItem[]): ExperienceItem[] {
+  return [...experiences].sort(compareItemsByDateDesc);
+}
+
+export function sortAwards(awards: AwardItem[]): AwardItem[] {
+  return [...awards].sort(compareItemsByDateDesc);
+}
+
+export function sortAttachments(attachments: UploadedFile[]): UploadedFile[] {
+  return [...attachments].sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (timeA !== timeB) {
+      return timeB - timeA;
+    }
+    return (b.id || '').localeCompare(a.id || '');
+  });
+}
+
+/**
  * Returns the effective featured representative details for a SportItem or InterestItem.
  * Handles 'latest' (most recent activity with image/youtube), 'selected' (user-picked activity), or 'default' (custom cover image).
  */
@@ -641,7 +823,7 @@ export interface RepresentativeView {
 export function getRepresentativeView(
   item: SportItem | InterestItem
 ): RepresentativeView {
-  const activities = item.activities || [];
+  const activities = sortActivities(item.activities || []);
   const mode = item.featuredMode || 'latest';
 
   // 1. If 'selected' mode and selectedActivityId exists:
@@ -660,18 +842,17 @@ export function getRepresentativeView(
     }
   }
 
-  // 2. If 'latest' mode: find latest activity
-  if (mode === 'latest' && activities.length > 0) {
-    // sorted by date or creation
-    const latest = activities[0];
+  // 2. If 'latest' mode:
+  if (mode === 'latest') {
+    const latest = activities.length > 0 ? activities[0] : null;
     return {
-      imageUrl: latest.imageUrl || item.coverImageUrl,
-      youtubeUrl: latest.youtubeUrl || item.youtubeUrl,
-      activityTitle: latest.title,
-      activityDate: latest.date,
-      activityDescription: latest.description,
-      activityId: latest.id,
-      modeLabel: '최신 등록 활동',
+      imageUrl: latest?.imageUrl || item.coverImageUrl,
+      youtubeUrl: latest?.youtubeUrl || item.youtubeUrl,
+      activityTitle: latest?.title,
+      activityDate: latest?.date,
+      activityDescription: latest?.description,
+      activityId: latest?.id,
+      modeLabel: '최신 활동 자동 반영',
     };
   }
 
@@ -683,6 +864,6 @@ export function getRepresentativeView(
     activityDate: undefined,
     activityDescription: undefined,
     activityId: undefined,
-    modeLabel: item.coverImageUrl ? '대표 지정 이미지' : '기본 비주얼',
+    modeLabel: item.coverImageUrl ? '대표 지정 사진' : '기본 일러스트',
   };
 }

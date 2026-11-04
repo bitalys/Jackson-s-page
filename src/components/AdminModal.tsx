@@ -16,6 +16,7 @@ import {
   LogOut,
   Star,
   Calendar,
+  Play,
 } from 'lucide-react';
 import {
   PortfolioData,
@@ -35,6 +36,11 @@ import {
   formatFileSize,
   INITIAL_PORTFOLIO_DATA,
   extractYouTubeId,
+  getYouTubeThumbnail,
+  sortActivities,
+  sortExperiences,
+  sortAwards,
+  sortAttachments,
 } from '../utils/storage';
 
 interface AdminModalProps {
@@ -86,6 +92,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const sportFilesInputRef = useRef<HTMLInputElement>(null);
   const awardFilesInputRef = useRef<HTMLInputElement>(null);
   const expFilesInputRef = useRef<HTMLInputElement>(null);
+  const expCoverInputRef = useRef<HTMLInputElement>(null);
 
   const showToast = (msg: string) => {
     setStatusToast(msg);
@@ -129,6 +136,46 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     return results;
   };
 
+  // Delete confirmation dialog state
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: 'sport' | 'interest' | 'award' | 'experience';
+    id: string;
+    title: string;
+  } | null>(null);
+
+  const handleConfirmDelete = () => {
+    if (!deleteConfirm) return;
+    const { type, id, title } = deleteConfirm;
+
+    if (type === 'sport') {
+      onUpdateData({
+        ...data,
+        athletics: data.athletics.filter((s) => s.id !== id),
+      });
+      showToast(`'${title}' 항목이 삭제되었습니다.`);
+    } else if (type === 'interest') {
+      onUpdateData({
+        ...data,
+        interests: data.interests.filter((i) => i.id !== id),
+      });
+      showToast(`'${title}' 항목이 삭제되었습니다.`);
+    } else if (type === 'award') {
+      onUpdateData({
+        ...data,
+        awards: data.awards.filter((a) => a.id !== id),
+      });
+      showToast(`'${title}' 항목이 삭제되었습니다.`);
+    } else if (type === 'experience') {
+      onUpdateData({
+        ...data,
+        experiences: data.experiences.filter((x) => x.id !== id),
+      });
+      showToast(`'${title}' 항목이 삭제되었습니다.`);
+    }
+
+    setDeleteConfirm(null);
+  };
+
   // --- Athletics CRUD ---
   const handleSaveSport = (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,23 +187,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     onUpdateData({ ...data, athletics: updatedAthletics });
     setEditingSport(null);
     showToast('스포츠 종목 정보가 저장되었습니다.');
-  };
-
-  const handleDeleteSport = (id: string) => {
-    onUpdateData({
-      ...data,
-      athletics: data.athletics.filter((s) => s.id !== id),
-    });
-    showToast('스포츠 항목이 삭제되었습니다.');
-  };
-
-  // --- Interests CRUD ---
-  const handleDeleteInterest = (id: string) => {
-    onUpdateData({
-      ...data,
-      interests: data.interests.filter((i) => i.id !== id),
-    });
-    showToast('메인 관심사/활동 항목이 삭제되었습니다.');
   };
 
   // --- Awards CRUD ---
@@ -178,8 +208,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     const exists = data.awards.some((a) => a.id === editingAward.id);
     const updatedAwards = exists
       ? data.awards.map((a) => (a.id === editingAward.id ? editingAward : a))
-      : [...data.awards, editingAward];
-    onUpdateData({ ...data, awards: updatedAwards });
+      : [editingAward, ...data.awards];
+    onUpdateData({ ...data, awards: sortAwards(updatedAwards) });
     setEditingAward(null);
     showToast('Writing & Award 항목이 저장되었습니다.');
   };
@@ -199,7 +229,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       id: `exp-${Date.now()}`,
       number: nextNum,
       title: '',
+      subtitle: '',
+      date: '',
+      categoryTag: '',
       description: '',
+      coverImageUrl: '',
+      youtubeUrl: '',
+      createdAt: new Date().toISOString(),
       attachments: [],
     });
   };
@@ -210,8 +246,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     const exists = data.experiences.some((x) => x.id === editingExp.id);
     const updatedExp = exists
       ? data.experiences.map((x) => (x.id === editingExp.id ? editingExp : x))
-      : [...data.experiences, editingExp];
-    onUpdateData({ ...data, experiences: updatedExp });
+      : [editingExp, ...data.experiences];
+    onUpdateData({ ...data, experiences: sortExperiences(updatedExp) });
     setEditingExp(null);
     showToast('Global Experience 항목이 저장되었습니다.');
   };
@@ -417,7 +453,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {data.athletics.map((sport) => {
-                  const acts = sport.activities || [];
+                  const acts = sortActivities(sport.activities || []);
                   const mode = sport.featuredMode || 'latest';
                   return (
                     <div
@@ -444,16 +480,22 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <div className="flex items-center gap-1">
                             <button
                               type="button"
-                              onClick={() => setEditingSport(sport)}
-                              className="p-1.5 text-[#555c55] hover:text-[#202421] cursor-pointer"
-                              title="종목 기본정보 수정"
+                              onClick={() => onOpenManageCategory(sport, 'athletics')}
+                              className="p-1.5 text-[#555c55] hover:text-[#202421] hover:bg-[#e8eae3] transition-colors cursor-pointer"
+                              title="세부 활동 관리 및 대표 선택"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteSport(sport.id)}
-                              className="p-1.5 text-[#737a72] hover:text-red-700 cursor-pointer"
+                              onClick={() =>
+                                setDeleteConfirm({
+                                  type: 'sport',
+                                  id: sport.id,
+                                  title: `${sport.indexLabel} — ${sport.title}`,
+                                })
+                              }
+                              className="p-1.5 text-[#737a72] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
                               title="삭제"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -551,7 +593,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {data.interests.map((interest) => {
-                  const acts = interest.activities || [];
+                  const acts = sortActivities(interest.activities || []);
                   const mode = interest.featuredMode || 'latest';
                   return (
                     <div
@@ -584,8 +626,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteInterest(interest.id)}
-                              className="p-1.5 text-[#737a72] hover:text-red-700 cursor-pointer"
+                              onClick={() =>
+                                setDeleteConfirm({
+                                  type: 'interest',
+                                  id: interest.id,
+                                  title: `${interest.icon} ${interest.title}`,
+                                })
+                              }
+                              className="p-1.5 text-[#737a72] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
                               title="삭제"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -800,7 +848,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               )}
 
               <div className="space-y-2.5">
-                {data.awards.map((award) => (
+                {sortAwards(data.awards).map((award) => (
                   <div
                     key={award.id}
                     className="p-4 bg-white border border-[#dcded6] flex items-center justify-between gap-4"
@@ -827,8 +875,15 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDeleteAward(award.id)}
-                        className="p-1.5 text-[#737a72] hover:text-red-700 cursor-pointer"
+                        onClick={() =>
+                          setDeleteConfirm({
+                            type: 'award',
+                            id: award.id,
+                            title: `${award.year} ${award.title}`,
+                          })
+                        }
+                        className="p-1.5 text-[#737a72] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                        title="삭제"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -898,6 +953,124 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       />
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#555c55] uppercase mb-1">
+                        지역 / 부제 (Location)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingExp.subtitle || ''}
+                        onChange={(e) =>
+                          setEditingExp({ ...editingExp, subtitle: e.target.value })
+                        }
+                        placeholder="예: Vancouver & Toronto · Canada"
+                        className="w-full px-3 py-2 bg-[#f8f7f3] border border-[#c8ccc3] text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#555c55] uppercase mb-1">
+                        활동 시기 / 기간 (Date)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingExp.date || ''}
+                        onChange={(e) =>
+                          setEditingExp({ ...editingExp, date: e.target.value })
+                        }
+                        placeholder="예: 2018 — 2021"
+                        className="w-full px-3 py-2 bg-[#f8f7f3] border border-[#c8ccc3] text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-[#555c55] uppercase mb-1">
+                        구분 / 태그 (Category Tag)
+                      </label>
+                      <input
+                        type="text"
+                        value={editingExp.categoryTag || ''}
+                        onChange={(e) =>
+                          setEditingExp({ ...editingExp, categoryTag: e.target.value })
+                        }
+                        placeholder="예: 다문화 적응 & 어학"
+                        className="w-full px-3 py-2 bg-[#f8f7f3] border border-[#c8ccc3] text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Cover Image */}
+                  <div className="p-3 bg-[#f8f7f3] border border-[#dcded6] space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-[#555c55] uppercase flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-[#536b56]" />
+                        대표 썸네일 이미지 (Cover Image)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => expCoverInputRef.current?.click()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-[#202923] text-white cursor-pointer"
+                      >
+                        <Upload className="w-3 h-3" />
+                        사진 파일 선택
+                      </button>
+                    </div>
+                    <input
+                      ref={expCoverInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const dataUrl = await readFileAsDataUrl(file);
+                          setEditingExp({ ...editingExp, coverImageUrl: dataUrl });
+                        }
+                        e.target.value = '';
+                      }}
+                      className="hidden"
+                    />
+                    <input
+                      type="url"
+                      value={editingExp.coverImageUrl || ''}
+                      onChange={(e) =>
+                        setEditingExp({ ...editingExp, coverImageUrl: e.target.value })
+                      }
+                      placeholder="이미지 주소(URL) 입력 또는 위 버튼으로 업로드"
+                      className="w-full px-3 py-1.5 bg-white border border-[#c8ccc3] text-xs"
+                    />
+                    {editingExp.coverImageUrl && (
+                      <div className="relative h-28 w-44 bg-[#e8eae3] border border-[#c8ccc3] overflow-hidden">
+                        <img
+                          src={editingExp.coverImageUrl}
+                          alt="Cover preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* YouTube URL */}
+                  <div className="p-3 bg-[#f8f7f3] border border-[#dcded6] space-y-2">
+                    <label className="block text-[11px] font-bold text-[#555c55] uppercase flex items-center gap-1.5">
+                      <Youtube className="w-3.5 h-3.5 text-red-700" />
+                      동영상 링크 (YouTube URL)
+                    </label>
+                    <input
+                      type="url"
+                      value={editingExp.youtubeUrl || ''}
+                      onChange={(e) =>
+                        setEditingExp({ ...editingExp, youtubeUrl: e.target.value })
+                      }
+                      placeholder="예: https://www.youtube.com/watch?v=..."
+                      className="w-full px-3 py-1.5 bg-white border border-[#c8ccc3] text-xs"
+                    />
+                    {extractYouTubeId(editingExp.youtubeUrl) && (
+                      <p className="text-[11px] text-green-700 font-medium">
+                        ✓ YouTube 동영상이 연결되었습니다.
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold text-[#555c55] uppercase mb-1">
                       내용 (Description)
@@ -911,6 +1084,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       className="w-full px-3 py-2 bg-[#f8f7f3] border border-[#c8ccc3] text-xs"
                     />
                   </div>
+
                   <div className="flex items-center justify-between pt-2 border-t border-[#e4e2db]">
                     <span className="text-xs text-[#70766e]">
                       첨부된 사진/문서: {editingExp.attachments.length}개
@@ -943,6 +1117,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </button>
                     </div>
                   </div>
+
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
@@ -962,44 +1137,98 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               )}
 
               <div className="space-y-2.5">
-                {data.experiences.map((exp) => (
-                  <div
-                    key={exp.id}
-                    className="p-4 bg-white border border-[#dcded6] flex items-center justify-between gap-4"
-                  >
-                    <div className="flex items-start gap-4">
-                      <span className="text-xs font-bold text-[#8a9287] pt-1">
-                        {exp.number}
-                      </span>
-                      <div>
-                        <p className="font-serif-display text-xl text-[#202421]">
-                          {exp.title}
-                        </p>
-                        <p className="text-xs text-[#70766e] mt-1">{exp.description}</p>
-                        <p className="text-[11px] text-[#8a9287] mt-1">
-                          첨부 자료: {exp.attachments.length}개
-                        </p>
+                {sortExperiences(data.experiences).map((exp) => {
+                  const thumb = exp.coverImageUrl || getYouTubeThumbnail(exp.youtubeUrl);
+                  const hasYt = Boolean(extractYouTubeId(exp.youtubeUrl));
+
+                  return (
+                    <div
+                      key={exp.id}
+                      className="p-4 bg-white border border-[#dcded6] flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        {thumb ? (
+                          <div className="relative w-20 h-14 bg-[#e8eae3] border border-[#c8ccc3] overflow-hidden shrink-0">
+                            <img
+                              src={thumb}
+                              alt={exp.title}
+                              className="w-full h-full object-cover"
+                            />
+                            {hasYt && (
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <span className="w-5 h-5 rounded-full bg-red-700 text-white flex items-center justify-center">
+                                  <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-20 h-14 bg-[#eeede7] border border-[#c8ccc3] flex items-center justify-center text-[#8a9287] shrink-0">
+                            <ImageIcon className="w-5 h-5 opacity-40" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#8a9287]">
+                              {exp.number}
+                            </span>
+                            {exp.categoryTag && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-[#e8eae3] text-[#536b56] font-semibold">
+                                {exp.categoryTag}
+                              </span>
+                            )}
+                            {exp.date && (
+                              <span className="text-[10px] text-[#788475]">
+                                {exp.date}
+                              </span>
+                            )}
+                            {hasYt && (
+                              <span className="text-[10px] font-bold text-red-700 flex items-center gap-0.5">
+                                <Youtube className="w-3 h-3" />
+                                YouTube
+                              </span>
+                            )}
+                          </div>
+                          <p className="font-serif-display text-lg text-[#202421] truncate">
+                            {exp.title}
+                          </p>
+                          {exp.subtitle && (
+                            <p className="text-xs text-[#536b56] font-medium">
+                              {exp.subtitle}
+                            </p>
+                          )}
+                          <p className="text-xs text-[#70766e] truncate max-w-md">
+                            {exp.description}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setEditingExp(exp)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-[#c8ccc3] bg-[#f8f7f3] cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          수정
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDeleteConfirm({
+                              type: 'experience',
+                              id: exp.id,
+                              title: `${exp.number}. ${exp.title}`,
+                            })
+                          }
+                          className="p-1.5 text-[#737a72] hover:text-red-700 hover:bg-red-50 transition-colors cursor-pointer"
+                          title="삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setEditingExp(exp)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-[#c8ccc3] bg-[#f8f7f3] cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                        수정
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteExp(exp.id)}
-                        className="p-1.5 text-[#737a72] hover:text-red-700 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1243,6 +1472,59 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog Modal */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setDeleteConfirm(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white border-2 border-[#202923] shadow-2xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-serif-display text-lg font-bold text-[#202421]">
+                  항목 삭제 확인
+                </h4>
+                <p className="text-xs text-[#788475]">
+                  삭제 후에는 복구할 수 없습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-[#f8f7f3] border border-[#e5e3dc] text-xs text-[#344137] leading-relaxed">
+              정말로 <b>'{deleteConfirm.title}'</b> 항목을 삭제하시겠습니까?
+              <br />
+              <span className="text-[#a14040] text-[11px] mt-1.5 block font-medium">
+                ※ 해당 항목에 등록된 모든 세부 활동 내역과 사진·영상 등 첨부자료도 함께 영구 삭제됩니다.
+              </span>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 text-xs font-bold border border-[#c8ccc3] bg-white text-[#555c55] hover:bg-[#eeede7] transition-colors cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-xs font-bold bg-red-700 text-white hover:bg-red-800 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                확인 및 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

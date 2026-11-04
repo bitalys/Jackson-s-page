@@ -12,7 +12,7 @@ import {
   Check,
 } from 'lucide-react';
 import { SportItem, InterestItem, SubActivityItem } from '../types';
-import { extractYouTubeId } from '../utils/storage';
+import { extractYouTubeId, sortActivities } from '../utils/storage';
 
 interface CategoryDetailModalProps {
   item: SportItem | InterestItem;
@@ -37,7 +37,7 @@ export const CategoryDetailModal: React.FC<CategoryDetailModalProps> = ({
   onViewMedia,
   onClose,
 }) => {
-  const activities = item.activities || [];
+  const activities = sortActivities(item.activities || []);
   const currentMode = item.featuredMode || 'latest';
   const selectedId = item.selectedActivityId;
 

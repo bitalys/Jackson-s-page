@@ -14,12 +14,14 @@ import {
   Star,
   ListFilter,
   CheckCircle2,
+  MapPin,
 } from 'lucide-react';
 import {
   PortfolioData,
   InterestItem,
   SportItem,
   SubActivityItem,
+  ExperienceItem,
   SectionCategory,
   UploadedFile,
 } from './types';
@@ -29,6 +31,11 @@ import {
   savePortfolioData,
   extractYouTubeId,
   getRepresentativeView,
+  getYouTubeThumbnail,
+  sortActivities,
+  sortExperiences,
+  sortAwards,
+  sortAttachments,
 } from './utils/storage';
 import { MediaViewerModal, ViewerTarget } from './components/MediaViewerModal';
 import { SubActivityModal } from './components/SubActivityModal';
@@ -36,6 +43,8 @@ import { CategoryDetailModal } from './components/CategoryDetailModal';
 import { MainCategoryModal } from './components/MainCategoryModal';
 import { FolderUploadModal } from './components/FolderUploadModal';
 import { AdminModal } from './components/AdminModal';
+import { GlobalExperienceModal } from './components/GlobalExperienceModal';
+import { ContactModal } from './components/ContactModal';
 
 export function App() {
   const [data, setData] = useState<PortfolioData>(INITIAL_PORTFOLIO_DATA);
@@ -96,6 +105,30 @@ export function App() {
     defaultSection: 'athletics',
   });
 
+  // Global Experience add/edit modal state
+  const [experienceModalState, setExperienceModalState] = useState<{
+    open: boolean;
+    experienceToEdit: ExperienceItem | null;
+  }>({
+    open: false,
+    experienceToEdit: null,
+  });
+
+  // Contact modal and copy toast state
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [emailCopiedToast, setEmailCopiedToast] = useState(false);
+
+  // Active dropdown menu for featured mode selection (e.g. Golf, Swimming, Donation, etc.)
+  const [activeModeMenuId, setActiveModeMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = () => setActiveModeMenuId(null);
+    if (activeModeMenuId) {
+      window.addEventListener('click', handleClickOutside);
+      return () => window.removeEventListener('click', handleClickOutside);
+    }
+  }, [activeModeMenuId]);
+
   useEffect(() => {
     loadPortfolioData().then((loaded) => {
       setData(loaded);
@@ -146,6 +179,9 @@ export function App() {
           updatedActivities = [savedActivity, ...sport.activities];
         }
 
+        // Always sort activities so latest date & newest saved threads are at the top
+        updatedActivities = sortActivities(updatedActivities);
+
         // If user marked as featured, update selectedActivityId and mode
         let selectedActivityId = sport.selectedActivityId;
         let featuredMode = sport.featuredMode;
@@ -173,6 +209,9 @@ export function App() {
         } else {
           updatedActivities = [savedActivity, ...interest.activities];
         }
+
+        // Always sort activities so latest date & newest saved threads are at the top
+        updatedActivities = sortActivities(updatedActivities);
 
         let selectedActivityId = interest.selectedActivityId;
         let featuredMode = interest.featuredMode;
@@ -299,6 +338,23 @@ export function App() {
     setMainCategoryModalState((prev) => ({ ...prev, open: false, editingItem: null }));
   };
 
+  // --- GLOBAL EXPERIENCE CRUD ---
+  const handleSaveExperience = (savedExp: ExperienceItem) => {
+    const exists = data.experiences.some((x) => x.id === savedExp.id);
+    const updated = exists
+      ? data.experiences.map((x) => (x.id === savedExp.id ? savedExp : x))
+      : [savedExp, ...data.experiences];
+    const sorted = sortExperiences(updated);
+    updateAndPersist({ ...data, experiences: sorted });
+    setExperienceModalState({ open: false, experienceToEdit: null });
+  };
+
+  const handleDeleteExperience = (id: string) => {
+    const updated = data.experiences.filter((x) => x.id !== id);
+    updateAndPersist({ ...data, experiences: updated });
+    setExperienceModalState({ open: false, experienceToEdit: null });
+  };
+
   // --- FOLDER / FILES UPLOAD COMPLETED ---
   const handleFolderUploadComplete = (
     files: UploadedFile[],
@@ -327,8 +383,8 @@ export function App() {
         if (sport.id !== targetParentId) return sport;
         return {
           ...sport,
-          activities: [...imageActivities, ...sport.activities],
-          attachments: [...sport.attachments, ...nonImages],
+          activities: sortActivities([...imageActivities, ...sport.activities]),
+          attachments: sortAttachments([...nonImages, ...sport.attachments]),
         };
       });
     } else if (targetSection === 'interests' && targetParentId) {
@@ -350,20 +406,20 @@ export function App() {
         if (interest.id !== targetParentId) return interest;
         return {
           ...interest,
-          activities: [...imageActivities, ...interest.activities],
-          attachments: [...interest.attachments, ...nonImages],
+          activities: sortActivities([...imageActivities, ...interest.activities]),
+          attachments: sortAttachments([...nonImages, ...interest.attachments]),
         };
       });
     } else if (targetSection === 'writing' && targetParentId) {
       nextData.awards = nextData.awards.map((a) =>
         a.id === targetParentId
-          ? { ...a, attachments: [...a.attachments, ...files] }
+          ? { ...a, attachments: sortAttachments([...files, ...a.attachments]) }
           : a
       );
     } else if (targetSection === 'experiences' && targetParentId) {
       nextData.experiences = nextData.experiences.map((x) =>
         x.id === targetParentId
-          ? { ...x, attachments: [...x.attachments, ...files] }
+          ? { ...x, attachments: sortAttachments([...files, ...x.attachments]) }
           : x
       );
     }
@@ -513,39 +569,11 @@ export function App() {
                   alt="Jackson Hong representative hero"
                   className="w-full h-full object-cover"
                 />
-                <div className="art-card art-card-top !bg-white/90 !backdrop-blur-sm">
-                  <span>REPRESENTATIVE</span>
-                  <b>{data.profile?.school ? data.profile.school.split(' ')[0] : 'STUDENT'}</b>
-                </div>
-                <div className="art-card art-card-bottom !bg-white/95 !backdrop-blur-sm">
-                  <span>ALWAYS IN PROGRESS</span>
-                  <b>
-                    Learn.
-                    <br />
-                    Practice.
-                    <br />
-                    Repeat.
-                  </b>
-                </div>
               </div>
             ) : (
               <>
                 <div className="art-circle"></div>
                 <div className="art-vertical"></div>
-                <div className="art-card art-card-top">
-                  <span>01 / 04</span>
-                  <b>LEADERSHIP</b>
-                </div>
-                <div className="art-card art-card-bottom">
-                  <span>ALWAYS IN PROGRESS</span>
-                  <b>
-                    Learn.
-                    <br />
-                    Practice.
-                    <br />
-                    Repeat.
-                  </b>
-                </div>
                 <div className="art-caption">
                   A portfolio of interests
                   <br />
@@ -648,7 +676,7 @@ export function App() {
             {(data.athletics || []).map((sport) => {
               const rep = getRepresentativeView(sport);
               const repYtId = extractYouTubeId(rep.youtubeUrl);
-              const acts = sport.activities || [];
+              const acts = sortActivities(sport.activities || []);
 
               return (
                 <article
@@ -659,24 +687,192 @@ export function App() {
                 >
                   <div className="sport-index">
                     <span className="font-bold">{sport.indexLabel}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-[#536b56] font-semibold bg-[#e8eae3] px-2 py-0.5">
-                        {rep.modeLabel}
-                      </span>
-                      {isAdminAuthenticated && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setMainCategoryModalState({
-                              open: true,
-                              categoryType: 'athletics',
-                              editingItem: sport,
-                            })
-                          }
-                          className="text-[10px] font-semibold text-[#536b56] hover:underline cursor-pointer"
+                    <div className="relative flex items-center gap-1.5">
+                      {/* Interactive Mode Badge & Menu Trigger Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveModeMenuId(
+                            activeModeMenuId === sport.id ? null : sport.id
+                          );
+                        }}
+                        className="inline-flex items-center gap-1 text-[10px] text-[#202421] font-semibold bg-[#e8eae3] hover:bg-[#d8ded3] px-2 py-0.5 border border-[#c8ccc3] transition-colors cursor-pointer"
+                        title="클릭하여 대표 표시 모드 변경"
+                      >
+                        <span className="text-[#536b56]">●</span>
+                        <span>{rep.modeLabel}</span>
+                        <span className="text-[9px] text-[#788475]">▾</span>
+                      </button>
+
+                      {/* 수정 버튼: 항상 접근 가능 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMainCategoryModalState({
+                            open: true,
+                            categoryType: 'athletics',
+                            editingItem: sport,
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold text-[#536b56] bg-white border border-[#c8ccc3] hover:bg-[#202923] hover:text-white transition-colors cursor-pointer"
+                        title="종목 정보 및 대표 설정 수정"
+                      >
+                        <Pencil className="w-2.5 h-2.5" />
+                        수정
+                      </button>
+
+                      {/* Dropdown Menu */}
+                      {activeModeMenuId === sport.id && (
+                        <div
+                          className="absolute right-0 top-full mt-1.5 w-64 sm:w-72 bg-white border-2 border-[#202923] shadow-xl z-30 p-2.5 text-xs text-[#202421] text-left animate-in fade-in"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          수정
-                        </button>
+                          <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#e5e3dc]">
+                            <span className="text-[10px] font-bold tracking-wider uppercase text-[#788475]">
+                              {sport.title} 대표 표시 모드
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setActiveModeMenuId(null)}
+                              className="text-[#8a9287] hover:text-[#202421] p-0.5 cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          <div className="space-y-1">
+                            {/* 1. 최신 활동 자동 반영 */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleChangeFeaturedMode(sport.id, 'latest', 'athletics');
+                                setActiveModeMenuId(null);
+                              }}
+                              className={`w-full text-left px-2.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                                (sport.featuredMode || 'latest') === 'latest'
+                                  ? 'bg-[#536b56] text-white font-bold'
+                                  : 'hover:bg-[#f0f2eb] text-[#202421]'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span>⚡</span>
+                                  <span className="font-semibold">최신 활동 자동 반영</span>
+                                </div>
+                                <p
+                                  className={`text-[10px] mt-0.5 ${
+                                    (sport.featuredMode || 'latest') === 'latest'
+                                      ? 'text-[#e8eae3]'
+                                      : 'text-[#788475]'
+                                  }`}
+                                >
+                                  가장 최근 등록된 활동이 메인 화면에 자동 노출
+                                </p>
+                              </div>
+                              {(sport.featuredMode || 'latest') === 'latest' && <span>✓</span>}
+                            </button>
+
+                            {/* 2. 지정된 대표 활동 */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveModeMenuId(null);
+                                setDetailModalState({
+                                  open: true,
+                                  item: sport,
+                                  type: 'athletics',
+                                });
+                              }}
+                              className={`w-full text-left px-2.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                                sport.featuredMode === 'selected'
+                                  ? 'bg-[#536b56] text-white font-bold'
+                                  : 'hover:bg-[#f0f2eb] text-[#202421]'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span>★</span>
+                                  <span className="font-semibold">지정된 대표 활동으로 선택</span>
+                                </div>
+                                <p
+                                  className={`text-[10px] mt-0.5 ${
+                                    sport.featuredMode === 'selected'
+                                      ? 'text-[#e8eae3]'
+                                      : 'text-[#788475]'
+                                  }`}
+                                >
+                                  활동 목록에서 원하는 활동을 직접 대표로 지정
+                                </p>
+                              </div>
+                              {sport.featuredMode === 'selected' && <span>✓</span>}
+                            </button>
+
+                            {/* 3. 기본 일러스트/지정 커버 */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleChangeFeaturedMode(sport.id, 'default', 'athletics');
+                                setActiveModeMenuId(null);
+                              }}
+                              className={`w-full text-left px-2.5 py-2 flex items-center justify-between transition-colors cursor-pointer ${
+                                sport.featuredMode === 'default'
+                                  ? 'bg-[#536b56] text-white font-bold'
+                                  : 'hover:bg-[#f0f2eb] text-[#202421]'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span>🖼️</span>
+                                  <span className="font-semibold">기본 일러스트 / 지정 커버</span>
+                                </div>
+                                <p
+                                  className={`text-[10px] mt-0.5 ${
+                                    sport.featuredMode === 'default'
+                                      ? 'text-[#e8eae3]'
+                                      : 'text-[#788475]'
+                                  }`}
+                                >
+                                  기본 그래픽 비주얼 또는 직접 등록한 커버 사진 노출
+                                </p>
+                              </div>
+                              {sport.featuredMode === 'default' && <span>✓</span>}
+                            </button>
+                          </div>
+
+                          <div className="pt-2 mt-2 border-t border-[#e5e3dc] flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveModeMenuId(null);
+                                setMainCategoryModalState({
+                                  open: true,
+                                  categoryType: 'athletics',
+                                  editingItem: sport,
+                                });
+                              }}
+                              className="text-[11px] font-bold text-[#536b56] hover:underline cursor-pointer flex items-center gap-1"
+                            >
+                              <Pencil className="w-3 h-3" />
+                              종목 정보 수정
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveModeMenuId(null);
+                                setDetailModalState({
+                                  open: true,
+                                  item: sport,
+                                  type: 'athletics',
+                                });
+                              }}
+                              className="text-[11px] text-[#788475] hover:text-[#202421] cursor-pointer"
+                            >
+                              활동 관리 ↗
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -966,7 +1162,7 @@ export function App() {
               </div>
               <h3>{data.profile.awardHeadline}</h3>
 
-              {(data.awards || []).map((award) => (
+              {(sortAwards(data.awards || [])).map((award) => (
                 <div key={award.id} className="border-t border-[#e3e4de] py-3.5">
                   <div className="award-row !border-0 !py-0">
                     <span>{award.year}</span>
@@ -1013,59 +1209,245 @@ export function App() {
               <br />
               <em>New perspectives.</em>
             </h2>
-            <button
-              type="button"
-              onClick={() =>
-                setFolderUploadConfig({
-                  open: true,
-                  defaultSection: 'experiences',
-                  defaultParentId: data.experiences[0]?.id,
-                })
-              }
-              className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#536b56] hover:text-[#202421] cursor-pointer"
-            >
-              <FolderUp className="w-3.5 h-3.5" />
-              + 글로벌 경험 사진/폴더 업로드
-            </button>
+            <p className="text-xs text-[#70766e] leading-relaxed max-w-sm mt-3">
+              해외 거주, 글로벌 여행, 보딩스쿨 썸머 프로그램 등 낯선 환경에서의 도전과 배움의 기록입니다. 사진과 영상을 통해 현장의 생생한 경험을 확인하고 언제든 자료를 수정할 수 있습니다.
+            </p>
+
+            <div className="mt-5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() =>
+                  setExperienceModalState({
+                    open: true,
+                    experienceToEdit: null,
+                  })
+                }
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold bg-[#202923] text-white hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                새 글로벌 경험 등록
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setFolderUploadConfig({
+                    open: true,
+                    defaultSection: 'experiences',
+                    defaultParentId: data.experiences[0]?.id,
+                  })
+                }
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 text-xs font-semibold border border-[#c8ccc3] bg-[#f8f7f3] text-[#202421] hover:bg-white cursor-pointer"
+              >
+                <FolderUp className="w-3.5 h-3.5 text-[#536b56]" />
+                컴퓨터 자료 업로드
+              </button>
+            </div>
           </div>
 
-          <div className="experience-list">
-            {(data.experiences || []).map((exp) => (
-              <article key={exp.id}>
-                <span className="experience-no">{exp.number}</span>
-                <div className="space-y-2">
-                  <h3>{exp.title}</h3>
-                  <p>{exp.description}</p>
-                  {(exp.attachments || []).length > 0 && (
-                    <div className="pt-2 flex flex-wrap gap-2">
-                      {(exp.attachments || []).map((att) => (
-                        <button
-                          key={att.id}
-                          type="button"
-                          onClick={() =>
-                            setViewerTarget({
-                              title: att.caption || att.name,
-                              subtitle: `${exp.number} · ${exp.title}`,
-                              file: att,
-                              youtubeUrl: att.youtubeUrl,
-                            })
-                          }
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#eeede7] border border-[#c8ccc3] text-xs font-medium text-[#202421] hover:border-[#202923] cursor-pointer"
-                        >
-                          {att.type === 'image' ? (
-                            <ImageIcon className="w-3.5 h-3.5 text-[#536b56]" />
-                          ) : (
-                            <FileText className="w-3.5 h-3.5 text-[#536b56]" />
-                          )}
-                          <span>{att.caption || att.name}</span>
-                        </button>
-                      ))}
+          <div className="experience-cards-grid grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+            {(sortExperiences(data.experiences || [])).map((exp) => {
+              const effectiveThumb = exp.coverImageUrl || getYouTubeThumbnail(exp.youtubeUrl);
+              const ytId = extractYouTubeId(exp.youtubeUrl);
+              const atts = sortAttachments(exp.attachments || []);
+
+              return (
+                <article
+                  key={exp.id}
+                  className="bg-[#f8f7f3] border border-[#dcded6] p-5 sm:p-6 flex flex-col justify-between hover:border-[#8a9b83] transition-all duration-200 shadow-2xs group"
+                >
+                  <div className="space-y-3">
+                    {/* Header: Number, Tag, Date, and Edit Button */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-serif-display text-sm font-semibold tracking-wider text-[#536b56] bg-[#e8eae3] px-2 py-0.5 border border-[#dcded6]">
+                          {exp.number}
+                        </span>
+                        {exp.categoryTag && (
+                          <span className="text-[10px] font-semibold text-[#536b56] bg-[#e8eae3] px-2 py-0.5">
+                            {exp.categoryTag}
+                          </span>
+                        )}
+                        {exp.date && (
+                          <span className="text-[10px] text-[#788475] flex items-center gap-1">
+                            <Calendar className="w-3 h-3 text-[#8a9287]" />
+                            {exp.date}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExperienceModalState({
+                            open: true,
+                            experienceToEdit: exp,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold border border-[#dcded6] bg-white text-[#4e584d] hover:border-[#202923] hover:text-[#202421] transition-colors cursor-pointer shrink-0"
+                        title="게시물 자료 및 동영상 링크 수정"
+                      >
+                        <Pencil className="w-3 h-3 text-[#536b56]" />
+                        자료 수정
+                      </button>
                     </div>
-                  )}
-                </div>
-                <span className="experience-mark">↗</span>
-              </article>
-            ))}
+
+                    {/* Thumbnail Image + Linked YouTube Video Preview (Exact same presentation as 기부 및 사회공헌 활동) */}
+                    {effectiveThumb ? (
+                      <div
+                        onClick={() =>
+                          setViewerTarget({
+                            title: exp.title,
+                            subtitle: `${exp.number} · ${exp.subtitle || '글로벌 경험'}`,
+                            date: exp.date,
+                            categoryTag: exp.categoryTag,
+                            description: exp.description,
+                            imageUrl: exp.coverImageUrl,
+                            youtubeUrl: exp.youtubeUrl,
+                          })
+                        }
+                        className="relative h-44 sm:h-48 w-full bg-[#e8eae3] border border-[#dcded6] overflow-hidden group cursor-pointer"
+                      >
+                        <img
+                          src={effectiveThumb}
+                          alt={exp.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        {ytId ? (
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent flex flex-col justify-between p-3.5">
+                            <span className="self-end px-2.5 py-0.5 bg-red-700 text-white text-[10px] font-bold tracking-wider uppercase flex items-center gap-1 shadow-sm">
+                              <Youtube className="w-3.5 h-3.5" />
+                              YouTube 연동
+                            </span>
+                            <div className="flex items-center gap-2.5 text-white">
+                              <span className="w-9 h-9 rounded-full bg-white/95 text-[#202923] flex items-center justify-center shrink-0 shadow-md group-hover:scale-110 transition-transform">
+                                <Play className="w-4 h-4 fill-current ml-0.5 text-red-700" />
+                              </span>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold leading-tight line-clamp-1">
+                                  {exp.title}
+                                </span>
+                                <span className="text-[10px] text-white/80 block">
+                                  클릭하여 연동 유튜브 영상 재생 ↗
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/65 text-white text-[10px] font-semibold backdrop-blur-xs">
+                            대표 사진 (클릭하여 확대) ↗
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() =>
+                          setExperienceModalState({
+                            open: true,
+                            experienceToEdit: exp,
+                          })
+                        }
+                        className="h-36 w-full border border-dashed border-[#c8ccc3] bg-[#eeede7] flex flex-col items-center justify-center text-[#8a9287] cursor-pointer hover:bg-white transition-colors"
+                      >
+                        <ImageIcon className="w-6 h-6 mb-1 opacity-40 text-[#536b56]" />
+                        <span className="text-xs font-medium text-[#555c55]">+ 썸네일 사진 등록하기</span>
+                        <span className="text-[10px] text-[#8a9287]">
+                          (사진 파일 또는 동영상 링크를 연결하세요)
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Content */}
+                    <div>
+                      <h3 className="font-serif-display text-2xl font-medium text-[#202421] mb-1">
+                        {exp.title}
+                      </h3>
+                      {exp.subtitle && (
+                        <p className="text-xs font-semibold text-[#536b56] mb-2 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-[#788475]" />
+                          {exp.subtitle}
+                        </p>
+                      )}
+                      <p className="text-xs text-[#70766e] leading-relaxed line-clamp-3">
+                        {exp.description}
+                      </p>
+                    </div>
+
+                    {/* Attachments if any */}
+                    {atts.length > 0 && (
+                      <div className="pt-2 border-t border-[#e5e3dc] flex flex-wrap gap-1.5">
+                        {atts.map((att) => (
+                          <button
+                            key={att.id}
+                            type="button"
+                            onClick={() =>
+                              setViewerTarget({
+                                title: att.caption || att.name,
+                                subtitle: `${exp.number} · ${exp.title}`,
+                                file: att,
+                                youtubeUrl: att.youtubeUrl || exp.youtubeUrl,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-[#c8ccc3] text-[10px] font-medium text-[#202421] hover:border-[#202923] cursor-pointer"
+                          >
+                            {att.type === 'image' ? (
+                              <ImageIcon className="w-3 h-3 text-[#536b56]" />
+                            ) : (
+                              <FileText className="w-3 h-3 text-[#536b56]" />
+                            )}
+                            <span className="truncate max-w-[120px]">
+                              {att.caption || att.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer Action Links */}
+                  <div className="pt-4 mt-3 border-t border-[#e5e3dc] flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewerTarget({
+                          title: exp.title,
+                          subtitle: `${exp.number} · ${exp.subtitle || '글로벌 경험'}`,
+                          date: exp.date,
+                          categoryTag: exp.categoryTag,
+                          description: exp.description,
+                          imageUrl: exp.coverImageUrl,
+                          youtubeUrl: exp.youtubeUrl,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#202421] hover:text-[#536b56] cursor-pointer"
+                    >
+                      {ytId ? (
+                        <>
+                          <Play className="w-3 h-3 text-red-700 fill-current" />
+                          영상 재생 & 상세 보기 ↗
+                        </>
+                      ) : (
+                        <>자료 및 사진 보기 ↗</>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExperienceModalState({
+                          open: true,
+                          experienceToEdit: exp,
+                        })
+                      }
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#687364] hover:text-[#202421] cursor-pointer"
+                    >
+                      <Pencil className="w-3 h-3" />
+                      게시물 편집
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -1123,7 +1505,7 @@ export function App() {
               {(data.interests || []).map((interest) => {
                 const rep = getRepresentativeView(interest);
                 const repYtId = extractYouTubeId(rep.youtubeUrl);
-                const acts = interest.activities || [];
+                const acts = sortActivities(interest.activities || []);
 
                 return (
                   <article key={interest.id} className="interest-card">
@@ -1147,22 +1529,20 @@ export function App() {
                             <Plus className="w-3 h-3" />
                             세부 활동 추가
                           </button>
-                          {isAdminAuthenticated && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setMainCategoryModalState({
-                                  open: true,
-                                  categoryType: 'interests',
-                                  editingItem: interest,
-                                })
-                              }
-                              className="p-1 text-[#8a9287] hover:text-[#202421] cursor-pointer"
-                              title="메인 항목 수정"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMainCategoryModalState({
+                                open: true,
+                                categoryType: 'interests',
+                                editingItem: interest,
+                              })
+                            }
+                            className="p-1 text-[#8a9287] hover:text-[#202421] cursor-pointer"
+                            title="메인 항목 수정 (제목, 소개, 대표 표시 모드 등)"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
@@ -1397,11 +1777,26 @@ export function App() {
           </h2>
           <p className="closing-copy">{data.profile.closingCopy}</p>
           <a
-            className="button button-light"
+            className="button button-light cursor-pointer"
             href={`mailto:${data.profile.contactEmail}`}
+            onClick={(e) => {
+              e.preventDefault();
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(data.profile.contactEmail).catch(() => {});
+              }
+              setEmailCopiedToast(true);
+              setTimeout(() => setEmailCopiedToast(false), 3000);
+              setContactModalOpen(true);
+            }}
+            title="클릭하여 이메일 보내기 및 주소 복사"
           >
             Get in touch <span>↗</span>
           </a>
+          {emailCopiedToast && (
+            <p className="text-xs text-[#b6c4ae] font-semibold mt-2 animate-in fade-in">
+              ✓ 이메일 주소({data.profile.contactEmail})가 복사되었습니다!
+            </p>
+          )}
           <p className="contact-note">{data.profile.contactNote}</p>
         </section>
       </main>
@@ -1579,6 +1974,33 @@ export function App() {
             });
           }}
           onClose={() => setAdminModalOpen(false)}
+        />
+      )}
+
+      {/* 7. Global Experience Add / Edit Modal */}
+      {experienceModalState.open && (
+        <GlobalExperienceModal
+          initialExperience={experienceModalState.experienceToEdit}
+          defaultNextNumber={String(data.experiences.length + 1).padStart(2, '0')}
+          onSave={handleSaveExperience}
+          onDelete={handleDeleteExperience}
+          onClose={() =>
+            setExperienceModalState({
+              open: false,
+              experienceToEdit: null,
+            })
+          }
+        />
+      )}
+
+      {/* 8. Contact Modal */}
+      {contactModalOpen && (
+        <ContactModal
+          email={data.profile.contactEmail}
+          copyText={data.profile.closingCopy}
+          contactNote={data.profile.contactNote}
+          onClose={() => setContactModalOpen(false)}
+          onOpenAdminSettings={() => setAdminModalOpen(true)}
         />
       )}
     </div>

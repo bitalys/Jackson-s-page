@@ -48,6 +48,15 @@ export const MainCategoryModal: React.FC<MainCategoryModalProps> = ({
   const [featuredMode, setFeaturedMode] = useState<'latest' | 'selected' | 'default'>(
     initialItem?.featuredMode || 'latest'
   );
+  const [selectedActivityId, setSelectedActivityId] = useState<string | undefined>(
+    initialItem?.selectedActivityId
+  );
+  const [details, setDetails] = useState<Array<{ label: string; value: string }>>(
+    initialSp?.details || [
+      { label: 'Role', value: 'Team Member' },
+      { label: 'Achievement', value: '' },
+    ]
+  );
   const [coverImageUrl, setCoverImageUrl] = useState(initialItem?.coverImageUrl || '');
   const [youtubeUrl, setYoutubeUrl] = useState(initialItem?.youtubeUrl || '');
   const [errorMsg, setErrorMsg] = useState('');
@@ -79,7 +88,7 @@ export const MainCategoryModal: React.FC<MainCategoryModalProps> = ({
         featuredMode,
         coverImageUrl: coverImageUrl || undefined,
         youtubeUrl: youtubeUrl.trim() || undefined,
-        selectedActivityId: initialInt?.selectedActivityId,
+        selectedActivityId: featuredMode === 'selected' ? selectedActivityId : undefined,
         activities: initialInt?.activities || [],
         attachments: initialInt?.attachments || [],
       };
@@ -95,9 +104,9 @@ export const MainCategoryModal: React.FC<MainCategoryModalProps> = ({
         featuredMode,
         coverImageUrl: coverImageUrl || undefined,
         youtubeUrl: youtubeUrl.trim() || undefined,
-        selectedActivityId: initialSp?.selectedActivityId,
+        selectedActivityId: featuredMode === 'selected' ? selectedActivityId : undefined,
         activities: initialSp?.activities || [],
-        details: initialSp?.details || [{ label: 'Role', value: 'Team Member' }],
+        details: details.filter((d) => d.label.trim() || d.value.trim()),
         attachments: initialSp?.attachments || [],
       };
       onSaveSport(saved);
@@ -243,10 +252,15 @@ export const MainCategoryModal: React.FC<MainCategoryModalProps> = ({
           </div>
 
           {/* Featured Display Preference */}
-          <div className="p-4 bg-[#eeede7] border border-[#dcded6] space-y-2">
-            <label className="block text-xs font-bold text-[#202421]">
-              포트폴리오 첫 페이지 대표 표시 방식
-            </label>
+          <div className="p-4 bg-[#eeede7] border border-[#dcded6] space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-[#202421]">
+                포트폴리오 첫 페이지 대표 표시 방식
+              </label>
+              <p className="text-[11px] text-[#788475] mt-0.5">
+                메인 카드의 상단 비주얼 영역에 노출할 활동 사진 및 연결 방식을 지정합니다.
+              </p>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <label className="flex items-center gap-2 p-2.5 bg-white border border-[#c8ccc3] text-xs cursor-pointer">
                 <input
@@ -257,7 +271,7 @@ export const MainCategoryModal: React.FC<MainCategoryModalProps> = ({
                   onChange={() => setFeaturedMode('latest')}
                   className="accent-[#202923]"
                 />
-                <span className="font-semibold">최신 등록 활동 자동</span>
+                <span className="font-semibold">최신 활동 자동 반영</span>
               </label>
               <label className="flex items-center gap-2 p-2.5 bg-white border border-[#c8ccc3] text-xs cursor-pointer">
                 <input
@@ -282,6 +296,56 @@ export const MainCategoryModal: React.FC<MainCategoryModalProps> = ({
                 <span className="font-semibold">기본 이미지/일러스트</span>
               </label>
             </div>
+
+            {featuredMode === 'selected' && (
+              <div className="mt-3 p-3 bg-white border border-[#c8ccc3] space-y-2">
+                <span className="block text-[11px] font-bold text-[#202421]">
+                  대표로 지정할 세부 활동 선택:
+                </span>
+                {initialItem?.activities && initialItem.activities.length > 0 ? (
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {initialItem.activities.map((act) => (
+                      <label
+                        key={act.id}
+                        className={`flex items-center gap-2 p-2 border text-xs cursor-pointer ${
+                          selectedActivityId === act.id
+                            ? 'bg-[#f0f4ee] border-[#536b56]'
+                            : 'bg-[#f8f7f3] border-[#e5e3dc] hover:bg-white'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="selectedActivity"
+                          value={act.id}
+                          checked={selectedActivityId === act.id}
+                          onChange={() => setSelectedActivityId(act.id)}
+                          className="accent-[#536b56]"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            {act.date && (
+                              <span className="text-[10px] text-[#788475]">{act.date}</span>
+                            )}
+                            <span className="font-semibold text-[#202421] truncate">
+                              {act.title}
+                            </span>
+                          </div>
+                          {act.categoryTag && (
+                            <span className="text-[10px] text-[#536b56]">
+                              [{act.categoryTag}]
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#8a9287]">
+                    등록된 세부 활동이 없습니다. [최신 활동 자동 반영] 모드를 선택하시거나 세부 활동을 먼저 추가해 주세요.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Optional Default Cover Image + YouTube */}

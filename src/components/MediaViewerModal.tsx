@@ -80,7 +80,7 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
                 href={youtubeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-[#202923] text-white hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-transparent text-[#202421] border border-[#b8bcaf] hover:bg-[#e8eae3] transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
                 YouTube에서 보기

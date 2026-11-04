@@ -19,6 +19,8 @@ import {
   readFileAsDataUrl,
   detectFileCategory,
   formatFileSize,
+  sortAwards,
+  sortExperiences,
 } from '../utils/storage';
 
 interface FolderUploadModalProps {
@@ -104,9 +106,9 @@ export const FolderUploadModal: React.FC<FolderUploadModalProps> = ({
       case 'athletics':
         return data.athletics.map((s) => ({ id: s.id, label: `${s.indexLabel} — ${s.title}` }));
       case 'writing':
-        return data.awards.map((a) => ({ id: a.id, label: `${a.year} — ${a.title}` }));
+        return sortAwards(data.awards).map((a) => ({ id: a.id, label: `${a.year} — ${a.title}` }));
       case 'experiences':
-        return data.experiences.map((e) => ({ id: e.id, label: `${e.number} — ${e.title}` }));
+        return sortExperiences(data.experiences).map((e) => ({ id: e.id, label: `${e.number} — ${e.title}` }));
       case 'interests':
         return data.interests.map((i) => ({ id: i.id, label: `${i.icon} ${i.title}` }));
       default:
