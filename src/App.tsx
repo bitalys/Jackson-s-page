@@ -1413,13 +1413,6 @@ export function App() {
         </a>
         <span>© {new Date().getFullYear()} Jackson Hong</span>
         <div className="flex items-center gap-5">
-          <button
-            type="button"
-            onClick={() => setAdminModalOpen(true)}
-            className="text-[10px] font-bold tracking-[0.1em] text-[#555c55] hover:text-[#202421] cursor-pointer uppercase"
-          >
-            ADMIN (초기 비밀번호: 1111)
-          </button>
           <a href="#home" className="font-bold">
             BACK TO TOP ↑
           </a>
